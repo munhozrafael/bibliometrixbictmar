@@ -1,0 +1,375 @@
+---
+title: "IMAR 10 anos"
+author: "Rafael R. Munhoz"
+date: "2023-06-21"
+output: pdf_document
+---
+
+
+```{r include=FALSE}
+# Installation of some useful packages
+if(!isTRUE(require("prettydoc"))){install.packages("prettydoc")}
+if(!isTRUE(require("rio"))){install.packages("rio")}
+library(prettydoc)
+library(rio)
+library(ggplot2)
+library(maps)
+library(bibliometrix)
+library(dplyr)
+library(grid)
+```
+
+
+
+```{r Data loading, include=FALSE}
+myfile <- "G:/Meu Drive/LabecMar/Scrap/dados/bictmarplaintext.txt"
+# Converting the loaded files into a R bibliographic dataframe
+N <- convert2df(file=myfile, dbsource="wos",format="plaintext")
+N <- subset(N, PY != 2023)
+```
+
+
+# Valores faltantes: identifica o status das variáveis disponíveis para as análises do pacote
+
+
+```{r}
+com <- missingData(N)
+
+com$mandatoryTags
+```
+
+# Análise Descritiva 
+
+
+
+```{r, include = FALSE}
+results <- biblioAnalysis(N, sep = ";")
+```
+
+
+## List element	- Description 
+
+Articles -	The total number of manuscripts
+
+Authors -	the authors’ frequency distribution
+
+AuthorsFrac -	the authors’ frequency distribution (fractionalized)
+
+FirstAuthors -	corresponding author of each manuscript
+
+nAUperPaper -	the number of authors per manuscript
+
+Appearances -	the number of author appearances
+
+nAuthors -	the number of authors
+
+AuMultiAuthoredArt -	the number of authors of multi-authored articles
+
+MostCitedPapers -	the list of manuscripts sorted by citations
+Years -	publication year of each manuscript
+
+FirstAffiliation -	the affiliation of the corresponding author
+
+Affiliations -	the frequency distribution of affiliations (of all co-authors for each paper)
+
+Aff_frac -	the fractionalized frequency distribution of affiliations (of all co-authors for each paper)
+
+CO- 	the affiliation country of the corresponding author
+
+Countries	- the affiliation countries’ frequency distribution
+
+CountryCollaboration -	the intra-country (SCP) and inter-country (MCP) collaboration indices
+
+TotalCitation -	the number of times each manuscript has been cited
+
+TCperYear -	the yearly average number of times each manuscript has been cited
+
+Sources	the frequency distribution of sources (journals, books, etc.)
+
+DE -	the frequency distribution of authors’ keywords
+
+ID -	the frequency distribution of keywords associated to the manuscript by SCOPUS and Thomson Reuters’ ISI Web of Knowledge databases
+
+
+
+The Authors per Article index is calculated as the ratio between the total number of authors and the total number of articles. 
+
+
+The Co-Authors per Articles index is calculated as the average number of co-authors per article. In this case, the index takes into account the author appearances while for the “authors per article” an author, even if he has published more than one article, is counted only once. For that reasons, Authors per Article index less or equal Co-authors per Article index.
+
+
+The Collaboration Index (CI) is calculated as Total Authors of Multi-Authored Articles/Total Multi-Authored Articles (Elango and Rajendran, 2012; Koseoglu, 2016). In other word, the Collaboration Index is a Co-authors per Article index calculated only using the multi-authored article set.
+
+```{r}
+S <- summary(object = results, k = 30, pause = FALSE)
+```
+
+
+## Referencias mais citadas
+
+```{r}
+CR <- citations(N, field = "article", sep = ";")
+cbind(CR$Cited[1:40])
+```
+## Autores mais citados
+
+```{r}
+CR <- citations(N, field = "author", sep = ";")
+cbind(CR$Cited[1:40])
+```
+
+
+As citações locais medem quantas vezes um autor (ou um documento) incluído nesta coleção foi citado por outros autores também na coleção.
+
+```{r}
+CR <- localCitations(N, sep = ";")
+CR$Authors[1:30,]
+```
+
+# Artigos mais citados
+
+LCS (Longest Citation Streak): É uma métrica que mede a extensão máxima de uma sequência de citações consecutivas em um conjunto de documentos. Isso significa que o LCS fornece uma medida de quanto um artigo ou autor é citado em uma sequência contínua de documentos, indicando uma forte interconexão entre eles.
+
+
+GCS (Global Citation Score): É uma medida que avalia o desempenho de um documento ou autor em termos de citações globais. O GCS calcula o número total de citações recebidas por um documento em um conjunto de artigos, indicando o impacto geral e a relevância do trabalho.
+
+
+
+```{r}
+CR$Papers[1:50,]
+```
+
+
+
+
+# Fator de Impacto
+
+```{r}
+fator <- read.table("impactfactor.txt", header= T, sep="\t")
+fator$totalFI <- fator$Freq*fator$FI
+listafator <- read.table("listafator.txt", header= T, sep="\t")
+```
+
+
+## Cálculo da média
+
+```{r}
+media <- sum(fator$totalFI)/sum(fator$Freq)
+cat("Média:", media)
+```
+```{r}
+med <- mean(listafator$fator)
+cat("Média:", med)
+```
+
+# Cálculo do desvio padrão
+
+```{r}
+desvio_padrao <- sd(listafator$fator)
+cat("Desvio Padrão:", desvio_padrao)
+```
+
+# Cálculo da variância
+
+```{r}
+variancia <- var(listafator$fator)
+cat("Variância:", variancia)
+```
+
+
+
+```{r}
+ggplot(fator, aes(x = FI)) +
+  geom_histogram(fill = "steelblue", color = "black", bins = 50) +
+  theme(axis.line = element_line(color = "black")) +
+  labs(x = "Impact Factor (IF)", y = "Frequency") +
+  theme(panel.background = element_rect(fill = "white")) +
+  scale_x_continuous(breaks= seq(0, 70, by = 5)) +
+  scale_y_continuous(breaks= seq(0, 150, by = 25)) +
+  theme(axis.text.x = element_text(size = 12, color = "black"),
+        axis.text.y = element_text(size = 12, color = "black"))
+```
+
+
+
+
+## Revistas com maiores FI (50 primeiras)
+
+```{r}
+fatormaior <- fator %>% 
+  arrange(desc(FI))
+
+fatormaior
+```
+
+
+## Produção por ano
+
+```{r}
+PA <- table(results$Years)
+PA <- as.data.frame(PA)
+colnames(PA) <- c("Ano", "Contagem")
+PA$Ano <- as.numeric(as.character(PA$Ano))
+PA$cum <- cumsum(PA$Contagem)
+PA$ContagemGrafico <- PA$Contagem*4
+PA
+```
+
+```{r}
+g1 <- ggplot(PA, aes(x = Ano, y = Contagem)) +
+  geom_line(size = 1.2 , color = "blue") +
+  theme(axis.line = element_line(color = "black")) +
+  labs(x = "", y = "nº publications", title = " ") +
+  theme(panel.background = element_rect(fill = "white")) +
+  scale_x_continuous(breaks= seq(2012, 2022, by = 1)) +
+  scale_y_continuous(breaks= seq(0, 120, by = 20)) +
+  theme(axis.text.x = element_text(size = 12, color = "black"),
+        axis.text.y = element_text(size = 12, color = "black"))
+g1
+#ggsave("g1.jpg", g1, width = 6, height = 4, dpi = 300, device = "jpg")
+```
+
+
+## Pesquisador por ano 
+
+```{r}
+docentes <- read.table("docentes.txt", header= T, sep="\t")
+summary(docentes)
+```
+
+
+```{r}
+#inicios dos docentes - para adicionar com aplicativo de imagens 
+inicio <- table(docentes$inicio)
+inicio
+
+novo_eixo_x <- c("12", "34", "47", "52", "56", "62", "64", "66", "68", "71", "71")
+```
+
+
+
+```{r}
+g2 <- ggplot(PA, aes(x = Ano)) +
+  geom_line(aes(y = cum), size = 1.2 , color = "blue") +
+  theme(axis.line = element_line(color = "black")) +
+  labs(x = " ", y = "nº publication", title = " ") +
+  theme(panel.background = element_rect(fill = "white")) +
+  theme(axis.text.x = element_text(size = 12, color = "black"),
+        axis.text.y = element_text(size = 12, color = "black")) +
+  scale_x_continuous(breaks= seq(2012, 2022, by = 1)) +
+  scale_y_continuous(breaks= seq(0, 700, by= 100)) 
+g2
+#ggsave("g2.jpg", g2, width = 6, height = 4, dpi = 300, device = "jpg")
+```
+
+
+```{r}
+g3 <- ggplot(PA, aes(x = Ano)) +
+  geom_line(aes(y = cum), size = 1.2 , color = "blue") +
+  theme(axis.line = element_line(color = "black")) +
+  labs(x = "Number of Researcher", y = "nº publication", title = " ") +
+  theme(panel.background = element_rect(fill = "white")) +
+  theme(axis.text.x = element_text(size = 12, color = "black"),
+        axis.text.y = element_text(size = 12, color = "black")) +
+  scale_x_continuous(breaks= c(2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022), labels = c("12", "34", "47", "52", "56", "62", "64", "66", "68", "71", "71")) +
+  scale_y_continuous(breaks= seq(0, 700, by= 100)) 
+g3
+#ggsave("g3.jpg", g3, width = 6, height = 4, dpi = 300, device = "jpg")
+```
+
+
+
+```{r}
+g4 <- ggplot(PA, aes(x = Ano)) +
+  geom_line(aes(y = cum), size = 1.2 , color = "blue") +
+  geom_line(aes(y = ContagemGrafico), size = 1.2, color = "red",linetype = "dashed") +
+  theme(axis.line = element_line(color = "black")) +
+  labs(x = "Number of Researcher", y = "nº publication", title = " ") +
+  theme(panel.background = element_rect(fill = "white")) +
+  theme(axis.text.x = element_text(size = 12, color = "black"),
+        axis.text.y = element_text(size = 12, color = "black")) +
+  scale_x_continuous(breaks= c(2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022), labels = c("12", "34", "47", "52", "56", "62", "64", "66", "68", "71", "71")) +
+  scale_y_continuous(breaks= seq(0, 700, by= 100)) +
+  scale_y_continuous(sec.axis = sec_axis(~ . / 4)) 
+g4
+#ggsave("g4.jpg", g4, width = 6, height = 4, dpi = 300, device = "jpg")
+```
+
+
+
+
+
+## Produção por Jornal 
+
+```{r}
+Contagem <- table(N$J9)
+Contagem_filtro <- Contagem[Contagem >=5]
+J <- as.data.frame(Contagem_filtro)
+colnames(J) <- c("Fontes", "Contagem")
+J$Fontes <- as.factor(J$Fontes)
+J$Fontes <- reorder(J$Fontes, -J$Contagem)
+```
+
+
+```{r}
+
+g5 <- ggplot(J, aes(y = Contagem, x = Fontes)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  theme(axis.line = element_line(color = "black")) + 
+  theme(panel.background = element_rect(fill = "white")) +
+  labs(x = "Sources", y = "nº publications", title = " ") +
+  theme(axis.text.x = element_text(angle = 65, hjust = 1))
+g5
+#ggsave("g5.jpg", g5, width = 6, height = 4, dpi = 300, device = "jpg")
+```
+
+
+
+
+## Internacionalização
+
+```{r}
+csp <- read.table("CountryScientificProduction.txt", header= T, sep="\t")
+csp <- csp[-1, ] # Retirando os dados do Brazil 1621
+csp$region <- as.factor(csp$region)
+csp$region <- reorder(csp$region, -csp$Freq)
+csp
+```
+
+
+```{r}
+g6 <- ggplot(csp, aes(y = Freq, x = region)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  theme(axis.line = element_line(color = "black")) + 
+  theme(panel.background = element_rect(fill = "white")) +
+  labs(x = "Countries", y = "Production", title = "Country Scientific Production") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(axis.text.x = element_text(angle = 50, hjust = 1))
+#ggsave("g6.jpg", g6, width = 6, height = 4, dpi = 300, device = "jpg")
+g6
+```
+
+
+
+## Edu collaboration network
+
+
+A rede "edu collaboration" é um tipo de rede bipartida, onde os nós são divididos em dois conjuntos: instituições e autores. As instituições são representadas como nós em um conjunto, enquanto os autores são representados como nós no outro conjunto. Uma aresta é criada entre uma instituição e um autor se eles colaboraram em uma publicação científica.
+
+```{r, Edu collaboration network, fig.height=10, fig.width=10}
+NetMatrix <- biblioNetwork(N, analysis = "collaboration",  network = "universities", sep = ";")
+net=networkPlot(NetMatrix,  n = 25, Title = "Edu collaboration",type = "auto", size=4, size.cex=T, edgesize = 2, labelsize=1.5)
+```
+
+
+## Onde os artigos foram citados 
+
+A biblioteca não oeferece esta função
+
+## Co autorias de pesquisadores do IMar
+
+A biblioteca não oeferece esta função
+
+## Co autorias - Palavras Chave
+
+Repot2.docx
